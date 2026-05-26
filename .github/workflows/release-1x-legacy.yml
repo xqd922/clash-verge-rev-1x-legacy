@@ -74,6 +74,7 @@ jobs:
         if: ${{ github.event.inputs.overwrite_existing == 'true' }}
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.RELEASE_TOKEN }}
           script: |
             const tag = process.env.RELEASE_TAG;
             const { owner, repo } = context.repo;
@@ -147,7 +148,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           NODE_OPTIONS: "--max_old_space_size=8192"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
@@ -160,7 +161,7 @@ jobs:
       - name: Portable Bundle
         run: pnpm legacy:portable ${{ matrix.target }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           TAG_NAME: ${{ needs.prepare-release.outputs.release_tag }}
 
   release-for-fixed-webview2:
@@ -225,7 +226,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           NODE_OPTIONS: "--max_old_space_size=8192"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
@@ -244,13 +245,13 @@ jobs:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
           name: ${{ needs.prepare-release.outputs.release_name }}
           body: ${{ needs.prepare-release.outputs.release_body }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }}
           files: src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*setup*
 
       - name: Portable Bundle
         run: pnpm legacy:portable-fixed-webview2 ${{ matrix.target }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           TAG_NAME: ${{ needs.prepare-release.outputs.release_tag }}
 
   release-update:
@@ -276,7 +277,7 @@ jobs:
       - name: Release updater file
         run: pnpm legacy:updater
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
 
   release-update-for-fixed-webview2:
     runs-on: ubuntu-latest
@@ -301,4 +302,4 @@ jobs:
       - name: Release updater file
         run: pnpm legacy:updater-fixed-webview2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
