@@ -1,7 +1,7 @@
 import fs from "fs-extra";
 
 const REPO_OWNER = "xqd922";
-const REPO_NAME = "clash-verge-rev";
+const REPO_NAME = "clash-verge-rev-1x-legacy";
 const LEGACY_PRODUCT_NAME = "Clash Verge Rev Legacy";
 const LEGACY_PACKAGE_NAME = "clash-verge-legacy";
 const LEGACY_IDENTIFIER = "io.github.xqd922.clash-verge-rev-legacy";
@@ -29,10 +29,7 @@ async function updateJson(file, transform) {
 
 async function updateCargoToml(file) {
   let content = await fs.readFile(file, "utf8");
-  content = content.replace(
-    /^version = ".*"$/m,
-    `version = "${version}"`
-  );
+  content = content.replace(/^version = ".*"$/m, `version = "${version}"`);
   content = content.replace(
     /^repository = ".*"$/m,
     `repository = "https://github.com/${REPO_OWNER}/${REPO_NAME}.git"`
