@@ -5,6 +5,7 @@ on:
     branches: [release/1.x-legacy]
     paths:
       - ".github/workflows/retry-legacy-release.yml"
+      - "UPDATELOG.md"
   workflow_dispatch:
 
 permissions: write-all
