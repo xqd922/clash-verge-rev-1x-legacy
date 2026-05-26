@@ -80,7 +80,7 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Delete existing release and tag
+      - name: Delete existing release
         if: ${{ github.event_name == 'push' || github.event.inputs.overwrite_existing == 'true' }}
         uses: actions/github-script@v9
         with:
@@ -96,14 +96,6 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
               core.info(`No existing release found for ${tag}`);
-            }
-
-            try {
-              await github.rest.git.deleteRef({ owner, repo, ref: `tags/${tag}` });
-              core.info(`Deleted existing tag ${tag}`);
-            } catch (error) {
-              if (error.status !== 404 && error.status !== 422) throw error;
-              core.info(`No existing tag found for ${tag}`);
             }
 
   release:
