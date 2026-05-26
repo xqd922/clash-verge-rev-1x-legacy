@@ -207,6 +207,7 @@ const ConnectionsPage = () => {
           margin: "10px",
           borderRadius: "8px",
           bgcolor: isDark ? "#282a36" : "#ffffff",
+          overflow: "hidden",
         }}
       >
         {filterConn.length === 0 ? (
