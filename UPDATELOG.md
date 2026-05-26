@@ -1,3 +1,26 @@
+## v1.7.7-legacy.23
+
+### Notice
+
+- `release/1.x-legacy` 维护线第二十三个补丁版本
+- 主题:两个 `.15` / `.16` 期间引入的前端视觉回归收敛到"与其他页面 / `v1.7.7` 一致"的最简形态:connections 页 table 视图四个圆角恢复、窗口边缘偶发黑线回退到 `v1.7.7` 行为。顺手把 legacy 发版流水线收紧:tag 推送不再触发上游 alpha workflow、推 tag 直接出包、JS actions 升级到 Node 24-ready 主版本
+
+### Bugs Fixes
+
+- **connections 页 table 视图四个圆角被切平**:其他页面(rules / logs / proxies)外层 Box 都是 `borderRadius: 8px` + 透明 Virtuoso,圆角自然显示。connections 页 table 视图里 `DataGrid` 自己画矩形背景(columnHeaders / main / virtualScroller 等多层),会盖在外层 Box 之上把圆角切成方角。`76015e3` 改 DataGrid 取色对齐和 `8bea609` 回退 5 处 bg 覆盖都没解决根因 — DataGrid 矩形本质还在。本次在外层 Box 加 `overflow: hidden`,把 DataGrid 整体 clip 到圆角形状内,完全不动 DataGrid sx。list 模式同样安全(Virtuoso 不需要溢出),与其他页面外层 Box 行为对齐
+
+- **窗口边缘偶发黑线**:`c6a56c6` (`.15`) 在 React/MUI 挂载前给 html/body 预绘制底色(`#2e303d` / `#f5f5f5`),诊断为"挂载前白闪与 DWM 暗框对比导致黑线",`fdbb916` (`.15`) 又把这段 CSS 从 inline `<style>` 移到外链 `.scss` 避免触发 Tauri CSP nonce 模式。但用户实测在 `v1.7.7`(无预绘制底色)上从来没出现过黑线,当前 HEAD 即使经过 `.22` destroy-on-close 生命周期回退、仍会偶发黑线 — 说明 `.15` 的诊断方向反了,预绘制底色反而在某些 paint 时序上成了黑线诱因。本次直接回退 `src/assets/styles/index.scss` 顶部那段预绘制 CSS 块 + `src/components/layout/use-custom-theme.ts` 的 `palette.background.default` 字段,两个文件 `git diff v1.7.7..HEAD` 输出为空,完全回到 `v1.7.7` 的"挂载前透明、React 挂载后才填色"行为
+
+### CI / 流水线
+
+- **legacy tag 推送不再触发上游 Alpha Build**:`alpha.yml` 的 `push: tags-ignore: [updater, alpha]` 把所有 `v*-legacy.*` tag 也吃进去做构建,但 alpha 流水线脚本不认 legacy 命名,Linux jobs 必然 fail。移除 `alpha.yml` 的 `push:` 触发,只保留 `workflow_dispatch:`,legacy tag 推送不再产生噪音 run
+
+- **legacy tag 推送直接出包**:`release-1x-legacy.yml` 之前是 workflow_dispatch only,每次发版要先 `gh workflow run` 一次。本次加 `on: push: tags: ['v*-legacy.*']`,推 tag 直接起 build。同时加 `concurrency: group: release-1x-legacy-${tag}` + `cancel-in-progress: true`,撤销前一轮同 tag 的 queued run。`meta` 步骤补全 `RELEASE_NAME` 从 tag 派生的兜底,delete-existing 步骤在 `push` 事件下也走 overwrite 分支
+
+- **JS actions 升级到 Node 24-ready 主版本**:GitHub 在 2026-06-02 强制 Node 20 JS actions 跑 Node 24,2026-09-16 完全从 runner 移除 Node 20。把 5 个 workflow 中的 `actions/checkout` v4 → v6、`actions/setup-node` v4 → v6、`actions/github-script` v7 → v9、`pnpm/action-setup` v4 → v6(读 `package.json` 的 `packageManager: pnpm@9.1.4`)、`softprops/action-gh-release` v2 → v3 一次升完。`windows-latest` 不动,GitHub 端会透明迁移到 `windows-2025-vs2026`
+
+---
+
 ## v1.7.7-legacy.22
 
 ### Notice
