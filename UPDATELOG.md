@@ -1,3 +1,24 @@
+## v1.7.7-legacy.22
+
+### Notice
+
+- `release/1.x-legacy` 维护线第二十二个补丁版本
+- 主题:撤回 `.18`-`.21` 期间围绕 Windows close-to-tray / warm-to-tray 的屏幕外保活方案,回到 `v1.7.7` / `.17` 验证过的窗口生命周期:关闭主窗口即销毁 WebView,托盘点击再重新创建窗口。本次优先解决 Win11 透明无边框窗口在托盘恢复时出现的黑线、唇口、边缘残影和奇怪窗口轮廓问题,接受托盘首次打开可能略慢、前端临时状态不保留的代价
+
+### Bugs Fixes
+
+- **托盘恢复时出现黑线 / 唇口 / 边缘残影**:撤回 `.19`-`.21` 的 offscreen preservation 路径。旧路径在 `CloseRequested` 中 `prevent_close`,再把 Windows 透明 WebView2 窗口改成 tool window 并移动到 `-32000,-32000`;托盘点击时复用同一个 top-level window,把它搬回保存坐标。实测和代码路径都显示这会复用一个经历过 ex_style 切换、屏幕外移动、透明 DWM 合成状态变化的 surface,容易在恢复时留下 1px 黑线、唇口或边缘轮廓。新路径不再拦截关闭事件,仅保存窗口位置,让 Tauri 默认销毁主窗口;托盘点击重新走 `WindowBuilder` 创建窗口、应用透明/阴影/圆角等窗口属性,避免复用脏的 DWM/WebView2 surface
+
+- **移除 warm-to-tray 预热链路带来的复杂 Windows 特化逻辑**:删除 `WARM_TO_TRAY` 全局状态、`is_warm_to_tray` Tauri command、前端 `isWarmToTray()` 分支、`ShowWindow(SW_SHOWNOACTIVATE)` 预热调用、`set_window_taskbar_skip` 的 `GetWindowLongPtrW/SetWindowLongPtrW` 直接改 ex_style helper,以及仅为该 helper 引入的直接 `windows-sys` 依赖。这样窗口生命周期重新变成单一模型:存在窗口则 `unminimize/show/focus`,不存在窗口则创建新窗口;不再在关闭、静默启动、托盘点击三条路径之间维护屏幕外隐藏状态
+
+- **保留静默启动语义修正**:仍然只有 `enable_silent_start=true` 且进程参数包含 `--silent` 时才不自动创建主窗口。手动双击 exe、开始菜单启动、普通命令行启动即使开启了静默启动设置,也会正常显示主窗口。这保留了 `.17` 修正的正确语义,避免 recovery 分支那种只看设置值导致手动启动也只进托盘的问题
+
+- **现在达到的效果**:关闭主窗口后,进程只保留托盘和后端服务,不再留下一个被移动到屏幕外的隐藏 WebView2 窗口;从托盘再次打开时,会创建一扇新的干净主窗口,重新走透明、阴影、圆角和前端初始化流程。这样黑线、唇口、边缘残影和奇怪窗口轮廓对应的 offscreen / ex_style / DWM surface 复用路径已经从代码里移除,用户能看到的结果就是托盘重开更接近普通冷启动窗口,而不是把一扇旧窗口从屏幕外搬回来
+
+- **行为取舍说明**:本版不再追求“关闭到托盘后保留 WebView2 前端状态”。关闭窗口后再次从托盘打开会重建 WebView2,因此页面滚动位置、临时输入、图表状态会重置,首次打开也可能比屏幕外保活方案慢一点。这个取舍是有意的:视觉稳定性优先于保活速度,因为黑线/唇口属于用户可见的窗口合成缺陷,而冷启动延迟是可接受的性能成本
+
+---
+
 ## v1.7.7-legacy.21
 
 ### Notice

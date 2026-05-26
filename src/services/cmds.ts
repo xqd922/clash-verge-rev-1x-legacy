@@ -227,10 +227,6 @@ export async function exitApp() {
   return invoke("exit_app");
 }
 
-export async function isWarmToTray() {
-  return invoke<boolean>("is_warm_to_tray");
-}
-
 export async function copyIconFile(
   path: string,
   name: "common" | "sysproxy" | "tun"
