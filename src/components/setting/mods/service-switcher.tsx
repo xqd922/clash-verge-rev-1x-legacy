@@ -52,6 +52,10 @@ export const ServiceSwitcher = (props: Props) => {
     try {
       setOpenUninstall(false);
       await uninstallService(passwd);
+      // 服务卸载后 TUN 已无法工作,同步把 enable_tun_mode 关掉,
+      // 避免下次启动 core 时 verge 配置说要 TUN 但服务不在的矛盾状态
+      await patchVerge({ enable_tun_mode: false });
+      onChangeData({ enable_tun_mode: false });
       await mutate();
       setTimeout(() => {
         mutate();
@@ -80,8 +84,13 @@ export const ServiceSwitcher = (props: Props) => {
     } else {
       try {
         // enable or disable service
-        await patchVerge({ enable_service_mode: !isActive });
-        onChangeData({ enable_service_mode: !isActive });
+        // 关服务时同步把 TUN 也关掉,避免 enable_service_mode=false +
+        // enable_tun_mode=true 的孤立状态(下次启动 core 时配置矛盾)
+        const patch: Partial<IVergeConfig> = isActive
+          ? { enable_service_mode: false, enable_tun_mode: false }
+          : { enable_service_mode: true };
+        await patchVerge(patch);
+        onChangeData(patch);
         await mutate();
         setTimeout(() => {
           mutate();
