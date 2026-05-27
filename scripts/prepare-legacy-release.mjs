@@ -7,6 +7,12 @@ const LEGACY_PACKAGE_NAME = "clash-verge-legacy";
 const LEGACY_IDENTIFIER = "io.github.xqd922.clash-verge-rev-legacy";
 const LEGACY_UPDATER_TAG = "updater-legacy";
 const LEGACY_WINDOWS_TARGET = "Clash Verge Rev Legacy.exe";
+// minisign public key matching the fork's TAURI_PRIVATE_KEY (24BCDCCBFA064E1E).
+// Committed tauri.conf.json keeps upstream's pubkey for diff-cleanliness;
+// CI overrides it here so released binaries actually verify against the
+// signatures produced by our signing key.
+const LEGACY_UPDATER_PUBKEY =
+  "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI0QkNEQ0NCRkEwNjRFMUUKUldRZVRnYjZ5OXk4SkR2aEF1emxuaTdRZmM3Q1hYaktEcDFhS3BOZ1dmeDl0VUlDZUY4R3dsSFQK";
 
 const releaseTag = process.argv[2] || process.env.RELEASE_TAG;
 
@@ -66,6 +72,7 @@ async function main() {
       },
       updater: {
         ...current.tauri.updater,
+        pubkey: LEGACY_UPDATER_PUBKEY,
         endpoints: [
           `https://mirror.ghproxy.com/https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${LEGACY_UPDATER_TAG}/update-proxy.json`,
           `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${LEGACY_UPDATER_TAG}/update.json`,
@@ -89,6 +96,7 @@ async function main() {
         },
         updater: {
           ...current.tauri.updater,
+          pubkey: LEGACY_UPDATER_PUBKEY,
           endpoints: [
             `https://mirror.ghproxy.com/https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${LEGACY_UPDATER_TAG}/update-fixed-webview2-proxy.json`,
             `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${LEGACY_UPDATER_TAG}/update-fixed-webview2.json`,
