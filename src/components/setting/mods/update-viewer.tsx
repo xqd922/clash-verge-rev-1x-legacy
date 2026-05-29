@@ -51,6 +51,14 @@ export const UpdateViewer = forwardRef<DialogRef>((props, ref) => {
     return updateInfo?.manifest?.body.toLowerCase().includes("break change");
   }, [updateInfo]);
 
+  const releasePageUrl = useMemo(() => {
+    const version = updateInfo?.manifest?.version;
+    if (!version)
+      return "https://github.com/xqd922/clash-verge-rev-1x-legacy/releases";
+    const tag = version.startsWith("v") ? version : `v${version}`;
+    return `https://github.com/xqd922/clash-verge-rev-1x-legacy/releases/tag/${tag}`;
+  }, [updateInfo]);
+
   const onUpdate = useLockFn(async () => {
     if (portableFlag) {
       Notice.error(t("Portable Updater Error"));
@@ -96,11 +104,7 @@ export const UpdateViewer = forwardRef<DialogRef>((props, ref) => {
             <Button
               variant="contained"
               size="small"
-              onClick={() => {
-                openUrl(
-                  `https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/v${updateInfo?.manifest?.version}`
-                );
-              }}
+              onClick={() => openUrl(releasePageUrl)}
             >
               {t("Go to Release Page")}
             </Button>

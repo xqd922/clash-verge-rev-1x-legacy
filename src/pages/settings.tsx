@@ -17,7 +17,7 @@ const SettingPage = () => {
   };
 
   const toGithubRepo = useLockFn(() => {
-    return openWebUrl("https://github.com/clash-verge-rev/clash-verge-rev");
+    return openWebUrl("https://github.com/xqd922/clash-verge-rev-1x-legacy");
   });
 
   const toGithubDoc = useLockFn(() => {
@@ -25,7 +25,7 @@ const SettingPage = () => {
   });
 
   const toTelegramChannel = useLockFn(() => {
-    return openWebUrl("https://t.me/clash_verge_re");
+    return openWebUrl("https://t.me/clash_verge_rev");
   });
 
   const mode = useThemeMode();
