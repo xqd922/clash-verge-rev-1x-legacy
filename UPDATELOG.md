@@ -1,3 +1,15 @@
+## v1.7.7-legacy.25
+
+### Notice
+
+- `release/1.x-legacy` 维护线第二十五个补丁版本
+
+### Bugs Fixes
+
+- **应用内更新和页面跳转链接回到 Legacy 维护线**:默认 updater、fixed WebView2 updater、更新弹窗 release 链接、设置页 GitHub 链接都改为 `xqd922/clash-verge-rev-1x-legacy`,并使用 Legacy 签名公钥,避免签名公钥不匹配导致应用内更新失败。设置页 Telegram 链接也同步改回 Clash Verge Rev 频道
+
+---
+
 ## v1.7.7-legacy.24
 
 ### Notice
