@@ -11,8 +11,6 @@ mod feat;
 mod utils;
 
 use crate::utils::{init, resolve, server};
-use tauri::{api, SystemTray};
-
 fn main() -> std::io::Result<()> {
     // 单例检测
     let app_exists: bool = tauri::async_runtime::block_on(async move {
@@ -34,14 +32,20 @@ fn main() -> std::io::Result<()> {
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
-        .system_tray(SystemTray::new())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             tauri::async_runtime::block_on(async move {
                 resolve::resolve_setup(app).await;
             });
             Ok(())
         })
-        .on_system_tray_event(core::tray::Tray::on_system_tray_event)
         .invoke_handler(tauri::generate_handler![
             // common
             cmds::get_sys_proxy,
@@ -99,22 +103,26 @@ fn main() -> std::io::Result<()> {
 
     #[cfg(target_os = "macos")]
     {
-        use tauri::{Menu, MenuItem, Submenu};
+        use tauri::menu::{Menu, PredefinedMenuItem, Submenu};
 
-        builder = builder.menu(
-            Menu::new().add_submenu(Submenu::new(
+        builder = builder.menu(|handle| {
+            let edit = Submenu::with_items(
+                handle,
                 "Edit",
-                Menu::new()
-                    .add_native_item(MenuItem::Undo)
-                    .add_native_item(MenuItem::Redo)
-                    .add_native_item(MenuItem::Copy)
-                    .add_native_item(MenuItem::Paste)
-                    .add_native_item(MenuItem::Cut)
-                    .add_native_item(MenuItem::SelectAll)
-                    .add_native_item(MenuItem::CloseWindow)
-                    .add_native_item(MenuItem::Quit),
-            )),
-        );
+                true,
+                &[
+                    &PredefinedMenuItem::undo(handle, None)?,
+                    &PredefinedMenuItem::redo(handle, None)?,
+                    &PredefinedMenuItem::copy(handle, None)?,
+                    &PredefinedMenuItem::paste(handle, None)?,
+                    &PredefinedMenuItem::cut(handle, None)?,
+                    &PredefinedMenuItem::select_all(handle, None)?,
+                    &PredefinedMenuItem::close_window(handle, None)?,
+                    &PredefinedMenuItem::quit(handle, None)?,
+                ],
+            )?;
+            Menu::with_items(handle, &[&edit])
+        });
     }
 
     let app = builder
@@ -124,10 +132,6 @@ fn main() -> std::io::Result<()> {
     app.run(|app_handle, e| match e {
         tauri::RunEvent::ExitRequested { api, .. } => {
             api.prevent_exit();
-        }
-        tauri::RunEvent::Updater(tauri::UpdaterEvent::Downloaded) => {
-            resolve::resolve_reset();
-            api::process::kill_children();
         }
         tauri::RunEvent::WindowEvent { label, event, .. } => {
             if label == "main" {

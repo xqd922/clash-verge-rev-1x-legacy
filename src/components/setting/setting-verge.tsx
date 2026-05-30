@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { open } from "@tauri-apps/api/dialog";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   Button,
   MenuItem,
@@ -17,7 +17,7 @@ import {
   openDevTools,
   copyClashEnv,
 } from "@/services/cmds";
-import { checkUpdate } from "@tauri-apps/api/updater";
+import { check } from "@tauri-apps/plugin-updater";
 import { useVerge } from "@/hooks/use-verge";
 import { version } from "@root/package.json";
 import { DialogRef, Notice } from "@/components/base";
@@ -66,8 +66,8 @@ const SettingVerge = ({ onError }: Props) => {
 
   const onCheckUpdate = async () => {
     try {
-      const info = await checkUpdate();
-      if (!info?.shouldUpdate) {
+      const info = await check();
+      if (!info) {
         Notice.success(t("Currently on the Latest Version"));
       } else {
         updateRef.current?.open();

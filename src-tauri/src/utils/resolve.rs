@@ -6,10 +6,8 @@ use anyhow::Result;
 use once_cell::sync::OnceCell;
 use serde_yaml::Mapping;
 use std::net::TcpListener;
-use tauri::api::notification;
 use tauri::{App, AppHandle, Manager};
-#[cfg(not(target_os = "linux"))]
-use window_shadows::set_shadow;
+use tauri_plugin_notification::NotificationExt;
 
 pub static VERSION: OnceCell<String> = OnceCell::new();
 
@@ -35,7 +33,7 @@ pub async fn resolve_setup(app: &mut App) {
     #[cfg(target_os = "macos")]
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
     let version = app.package_info().version.to_string();
-    handle::Handle::global().init(app.app_handle());
+    handle::Handle::global().init(app.app_handle().clone());
     VERSION.get_or_init(|| version.clone());
 
     log_err!(init::init_resources());
@@ -78,7 +76,7 @@ pub async fn resolve_setup(app: &mut App) {
 
     // setup a simple http server for singleton
     log::trace!("launch embed server");
-    server::embed_server(app.app_handle());
+    server::embed_server(app.app_handle().clone());
 
     log::trace!("init system tray");
     log_err!(tray::Tray::update_systray(&app.app_handle()));
@@ -93,7 +91,7 @@ pub async fn resolve_setup(app: &mut App) {
     log_err!(sysopt::Sysopt::global().init_sysproxy());
 
     log_err!(handle::Handle::update_systray_part());
-    log_err!(hotkey::Hotkey::global().init(app.app_handle()));
+    log_err!(hotkey::Hotkey::global().init(app.app_handle().clone()));
     log_err!(timer::Timer::global().init());
 
     let argvs: Vec<String> = std::env::args().collect();
@@ -116,17 +114,17 @@ pub fn resolve_reset() {
 
 /// create main window
 pub fn create_window(app_handle: &AppHandle) {
-    if let Some(window) = app_handle.get_window("main") {
+    if let Some(window) = app_handle.get_webview_window("main") {
         trace_err!(window.unminimize(), "set win unminimize");
         trace_err!(window.show(), "set win visible");
         trace_err!(window.set_focus(), "set win focus");
         return;
     }
 
-    let mut builder = tauri::window::WindowBuilder::new(
+    let mut builder = tauri::WebviewWindowBuilder::new(
         app_handle,
         "main".to_string(),
-        tauri::WindowUrl::App("index.html".into()),
+        tauri::WebviewUrl::App("index.html".into()),
     )
     .title("Clash Verge")
     .visible(false)
@@ -199,9 +197,8 @@ pub fn create_window(app_handle: &AppHandle) {
             if center.unwrap_or(true) {
                 trace_err!(win.center(), "set win center");
             }
-
             #[cfg(not(target_os = "linux"))]
-            trace_err!(set_shadow(&win, true), "set win shadow");
+            trace_err!(win.set_shadow(true), "set win shadow");
             if is_maximized {
                 trace_err!(win.maximize(), "set win maximize");
             }
@@ -222,7 +219,7 @@ pub fn save_window_size_position(app_handle: &AppHandle, save_to_file: bool) -> 
     }
 
     let win = app_handle
-        .get_window("main")
+        .get_webview_window("main")
         .ok_or(anyhow::anyhow!("failed to get window"))?;
 
     let scale = win.scale_factor()?;
@@ -244,17 +241,35 @@ pub async fn resolve_scheme(param: String) -> Result<()> {
         .trim_start_matches("clash://install-config?url=");
     match import_profile(url.to_string(), None).await {
         Ok(_) => {
-            notification::Notification::new(crate::utils::dirs::APP_ID)
-                .title("Clash Verge")
-                .body("Import profile success")
-                .show()
+            handle::Handle::global()
+                .app_handle
+                .lock()
+                .as_ref()
+                .map(|app_handle| {
+                    app_handle
+                        .notification()
+                        .builder()
+                        .title("Clash Verge")
+                        .body("Import profile success")
+                        .show()
+                })
+                .transpose()
                 .unwrap();
         }
         Err(e) => {
-            notification::Notification::new(crate::utils::dirs::APP_ID)
-                .title("Clash Verge")
-                .body(format!("Import profile failed: {e}"))
-                .show()
+            handle::Handle::global()
+                .app_handle
+                .lock()
+                .as_ref()
+                .map(|app_handle| {
+                    app_handle
+                        .notification()
+                        .builder()
+                        .title("Clash Verge")
+                        .body(format!("Import profile failed: {e}"))
+                        .show()
+                })
+                .transpose()
                 .unwrap();
             log::error!("Import profile failed: {e}");
         }

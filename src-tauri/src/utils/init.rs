@@ -9,8 +9,8 @@ use log4rs::config::{Appender, Logger, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use std::fs::{self, DirEntry};
 use std::path::PathBuf;
+use std::process::Command;
 use std::str::FromStr;
-use tauri::api::process::Command;
 
 /// initialize this instance's log file
 fn init_log() -> Result<()> {

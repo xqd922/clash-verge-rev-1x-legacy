@@ -112,7 +112,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Rust Stable
-        uses: dtolnay/rust-toolchain@1.85.0
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
@@ -189,7 +189,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Rust Stable
-        uses: dtolnay/rust-toolchain@1.85.0
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 

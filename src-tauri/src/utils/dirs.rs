@@ -2,10 +2,7 @@ use crate::core::handle;
 use anyhow::Result;
 use once_cell::sync::OnceCell;
 use std::path::PathBuf;
-use tauri::{
-    api::path::{data_dir, resource_dir},
-    Env,
-};
+use tauri::Manager;
 
 #[cfg(not(feature = "verge-dev"))]
 pub static APP_ID: &str = "io.github.clash-verge-rev.clash-verge-rev-legacy";
@@ -48,7 +45,7 @@ pub fn app_home_dir() -> Result<PathBuf> {
         return Ok(PathBuf::from(app_dir).join(".config").join(APP_ID));
     }
 
-    Ok(data_dir()
+    Ok(::dirs::data_dir()
         .ok_or(anyhow::anyhow!("failed to get app home dir"))?
         .join(APP_ID))
 }
@@ -58,9 +55,7 @@ pub fn app_resources_dir() -> Result<PathBuf> {
     let handle = handle::Handle::global();
     let app_handle = handle.app_handle.lock();
     if let Some(app_handle) = app_handle.as_ref() {
-        let res_dir = resource_dir(app_handle.package_info(), &Env::default())
-            .ok_or(anyhow::anyhow!("failed to get the resource dir"))?
-            .join("resources");
+        let res_dir = app_handle.path().resource_dir()?.join("resources");
         return Ok(res_dir);
     };
     Err(anyhow::anyhow!("failed to get the resource dir"))

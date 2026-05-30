@@ -3,6 +3,23 @@
 ### Notice
 
 - `release/1.x-legacy` 维护线第二十七个补丁版本
+- 主题:底层 Tauri 运行时从 1.x 迁移到当前 2.x 稳定版,同步更新 Tauri CLI/API/官方插件和 legacy 发版配置,继续保持 1.x legacy 维护线的应用名、包名、签名公钥和 updater 地址
+
+### Core / Runtime
+
+- **Tauri 升级到 2.x 稳定版**:Rust 端升级到 `tauri 2.11.2` / `tauri-build 2.6.2`,前端升级到 `@tauri-apps/cli 2.11.2` / `@tauri-apps/api 2.11.0`,并把 updater、shell、dialog、fs、process、notification、clipboard、global-shortcut 等能力迁移到 Tauri 2 官方插件
+
+- **Tauri 2 权限和配置模型迁移**:新增 `src-tauri/capabilities` 权限文件,把 v1 allowlist 对应到 v2 capability/plugin permission;`tauri.conf.json`、平台覆盖配置和 fixed WebView2 配置迁移到 v2 的 `app` / `bundle` / `plugins` 结构,保留 v1-compatible updater artifact 输出
+
+- **托盘、窗口、热键和 updater API 适配 Tauri 2**:Rust 端改用 `TrayIconBuilder`、`Menu`/`CheckMenuItem`、`WebviewWindowBuilder`、`get_webview_window`、新版 global shortcut/plugin API;前端更新检查和下载安装改用 `@tauri-apps/plugin-updater` 的 `check()` / `downloadAndInstall()`
+
+### CI / 流水线
+
+- **legacy release 脚本适配 Tauri 2**:`pnpm legacy:prepare-release` 现在写入 v2 配置字段,包括 legacy product name、binary name、identifier、publisher、updater pubkey/endpoints,并同步 fixed WebView2 updater 地址,避免旧 `tauri.*` 配置节点残留
+
+- **修复 Legacy release tag 被构建流程重写的问题**:普通安装包 job 不再让 `tauri-action` 创建/移动 release tag,改为只负责构建,统一由 `softprops/action-gh-release` 上传资产,避免同一个 `.27` tag 在旧错误提交链和当前维护线之间反复跳转
+
+- **Legacy release 改为手动触发**:`release-1x-legacy.yml` 不再监听 `v*-legacy.*` tag push,避免同一个 tag push run 和 workflow_dispatch run 进入同一个 concurrency group 后互相取消
 
 ### Bugs Fixes
 
@@ -15,12 +32,6 @@
 - **补齐旧主程序进程检查**:安装前同时检查当前主程序 `${MAINBINARYNAME}.exe` 和旧 Legacy 主程序 `clash-verge.exe`,无法关闭时直接中止安装,避免服务迁移和文件覆盖只完成一半
 
 - **服务迁移失败不再假装安装成功**:停止、删除、注册、启动服务任一步骤失败时安装器会直接中止并显示具体服务错误,减少“安装结束但服务仍不可用”的残留状态
-
-### CI / 流水线
-
-- **修复 Legacy release tag 被构建流程重写的问题**:普通安装包 job 不再让 `tauri-action` 创建/移动 release tag,改为只负责构建,统一由 `softprops/action-gh-release` 上传资产,避免同一个 `.27` tag 在旧错误提交链和当前维护线之间反复跳转
-
-- **Legacy release 改为手动触发**:`release-1x-legacy.yml` 不再监听 `v*-legacy.*` tag push,避免同一个 tag push run 和 workflow_dispatch run 进入同一个 concurrency group 后互相取消
 
 ---
 
