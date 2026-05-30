@@ -126,6 +126,8 @@ const checks = [
     mustContain: [
       "pnpm legacy:verify-coexistence",
       "uses: softprops/action-gh-release@v3",
+      "cancel-in-progress: false",
+      "target_commitish: ${{ github.sha }}",
     ],
     mustNotContain: [
       "tagName: ${{ needs.prepare-release.outputs.release_tag }}",

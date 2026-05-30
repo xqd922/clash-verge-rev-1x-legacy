@@ -20,7 +20,7 @@ permissions: write-all
 
 concurrency:
   group: release-1x-legacy-${{ github.event.inputs.tag || github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   CARGO_INCREMENTAL: 0
@@ -157,6 +157,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
           name: ${{ needs.prepare-release.outputs.release_name }}
           body: ${{ needs.prepare-release.outputs.release_body }}
           token: ${{ secrets.RELEASE_TOKEN }}
@@ -247,6 +248,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
           name: ${{ needs.prepare-release.outputs.release_name }}
           body: ${{ needs.prepare-release.outputs.release_body }}
           token: ${{ secrets.RELEASE_TOKEN }}
