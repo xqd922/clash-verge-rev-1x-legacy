@@ -17,6 +17,18 @@
 
 - **legacy release 脚本适配 Tauri 2**:`pnpm legacy:prepare-release` 现在写入 v2 配置字段,包括 legacy product name、binary name、identifier、publisher、updater pubkey/endpoints,并同步 fixed WebView2 updater 地址,避免旧 `tauri.*` 配置节点残留
 
+### Bugs Fixes
+
+- **安装器自动迁移旧 Legacy 服务残留**:从 `.25` 或更早版本升级时,如果旧服务 `clash_verge_service` 的 `ImagePath` 指向当前 Legacy 安装目录下的 `resources\clash-verge-service.exe`,安装器会先移除这个旧共享服务,再注册并启动新的 `clash_verge_service_legacy`,避免升级后仍由旧服务占用 `33211`
+
+- **修复新服务路径残留**:如果 `clash_verge_service_legacy` 已存在但 `ImagePath` 不是当前 Legacy 安装目录下的 `resources\clash-verge-service-legacy.exe`,安装器会先重装服务,避免“服务名正确但指向旧路径/缺文件”的同类问题
+
+- **不误删官方版服务**:迁移前会读取 `HKLM\SYSTEM\CurrentControlSet\Services\clash_verge_service\ImagePath`,只有路径命中当前 Legacy 安装目录才处理;如果这个服务属于官方版 Clash Verge Rev 安装目录,Legacy 安装器会保持它不变
+
+- **补齐旧主程序进程检查**:安装前同时检查当前主程序 `${MAINBINARYNAME}.exe` 和旧 Legacy 主程序 `clash-verge.exe`,无法关闭时直接中止安装,避免服务迁移和文件覆盖只完成一半
+
+- **服务迁移失败不再假装安装成功**:停止、删除、注册、启动服务任一步骤失败时安装器会直接中止并显示具体服务错误,减少“安装结束但服务仍不可用”的残留状态
+
 ---
 
 ## v1.7.7-legacy.26
