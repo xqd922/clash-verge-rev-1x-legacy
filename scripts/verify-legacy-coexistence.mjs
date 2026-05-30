@@ -128,6 +128,8 @@ const checks = [
       "uses: softprops/action-gh-release@v3",
       "cancel-in-progress: false",
       "target_commitish: ${{ github.sha }}",
+      "TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}",
+      "TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}",
     ],
     mustNotContain: [
       "tagName: ${{ needs.prepare-release.outputs.release_tag }}",
