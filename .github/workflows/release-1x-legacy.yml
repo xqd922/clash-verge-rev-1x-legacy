@@ -154,11 +154,17 @@ jobs:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          tagName: ${{ needs.prepare-release.outputs.release_tag }}
-          releaseName: ${{ needs.prepare-release.outputs.release_name }}
-          releaseBody: ${{ needs.prepare-release.outputs.release_body }}
           tauriScript: pnpm
           args: --target ${{ matrix.target }}
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          name: ${{ needs.prepare-release.outputs.release_name }}
+          body: ${{ needs.prepare-release.outputs.release_body }}
+          token: ${{ secrets.RELEASE_TOKEN }}
+          files: src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*setup*
 
       - name: Portable Bundle
         run: pnpm legacy:portable ${{ matrix.target }}

@@ -123,7 +123,13 @@ const checks = [
   },
   {
     file: ".github/workflows/release-1x-legacy.yml",
-    mustContain: ["pnpm legacy:verify-coexistence"],
+    mustContain: [
+      "pnpm legacy:verify-coexistence",
+      "uses: softprops/action-gh-release@v3",
+    ],
+    mustNotContain: [
+      "tagName: ${{ needs.prepare-release.outputs.release_tag }}",
+    ],
   },
 ];
 
