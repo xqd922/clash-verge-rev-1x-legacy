@@ -90,12 +90,12 @@ pub fn profiles_path() -> Result<PathBuf> {
 
 #[cfg(not(target_os = "windows"))]
 pub fn service_path() -> Result<PathBuf> {
-    Ok(app_resources_dir()?.join("clash-verge-service"))
+    Ok(app_resources_dir()?.join("clash-verge-service-legacy"))
 }
 
 #[cfg(windows)]
 pub fn service_path() -> Result<PathBuf> {
-    Ok(app_resources_dir()?.join("clash-verge-service.exe"))
+    Ok(app_resources_dir()?.join("clash-verge-service-legacy.exe"))
 }
 
 pub fn service_log_file() -> Result<PathBuf> {

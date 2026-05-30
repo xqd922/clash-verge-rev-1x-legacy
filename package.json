@@ -18,6 +18,7 @@
     "legacy:portable-fixed-webview2": "node scripts/portable-fixed-webview2-legacy.mjs",
     "legacy:updater": "node scripts/updater-legacy.mjs",
     "legacy:updater-fixed-webview2": "node scripts/updater-fixed-webview2-legacy.mjs",
+    "legacy:verify-coexistence": "node scripts/verify-legacy-coexistence.mjs",
     "portable": "node scripts/portable.mjs",
     "portable-fixed-webview2": "node scripts/portable-fixed-webview2.mjs",
     "prepare": "husky install"
