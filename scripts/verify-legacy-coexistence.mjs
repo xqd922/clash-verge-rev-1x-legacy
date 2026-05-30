@@ -126,10 +126,12 @@ const checks = [
     mustContain: [
       "pnpm legacy:verify-coexistence",
       "uses: softprops/action-gh-release@v3",
+      "cancel-in-progress: false",
     ],
     mustNotContain: [
       "tagName: ${{ needs.prepare-release.outputs.release_tag }}",
       '- "v*-legacy.*"',
+      "cancel-in-progress: true",
     ],
   },
 ];
