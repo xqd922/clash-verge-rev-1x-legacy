@@ -7,6 +7,7 @@ const BUILD_ENV = {
   ...process.env,
   NODE_OPTIONS: withNodeHeap(process.env.NODE_OPTIONS),
 };
+const SKIP_CHECK = process.env.CLASH_VERGE_SKIP_BUILD_CHECK === "1";
 
 function withNodeHeap(nodeOptions = "") {
   if (nodeOptions.includes("--max_old_space_size")) {
@@ -68,9 +69,12 @@ function quoteCmd(bin, args) {
 const target = findTarget(rawArgs);
 const checkArgs = ["check"];
 
-if (target) {
-  checkArgs.push(target);
+if (!SKIP_CHECK) {
+  if (target) {
+    checkArgs.push(target);
+  }
+
+  run(checkArgs);
 }
 
-run(checkArgs);
 run(["tauri", "build", ...rawArgs]);
