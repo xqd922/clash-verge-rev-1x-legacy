@@ -129,6 +129,7 @@ const checks = [
     ],
     mustNotContain: [
       "tagName: ${{ needs.prepare-release.outputs.release_tag }}",
+      '- "v*-legacy.*"',
     ],
   },
 ];

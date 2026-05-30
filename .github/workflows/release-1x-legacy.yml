@@ -16,10 +16,6 @@ on:
         required: true
         type: boolean
         default: true
-  push:
-    tags:
-      - "v*-legacy.*"
-
 permissions: write-all
 
 concurrency:

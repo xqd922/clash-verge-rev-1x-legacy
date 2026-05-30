@@ -20,6 +20,8 @@
 
 - **修复 Legacy release tag 被构建流程重写的问题**:普通安装包 job 不再让 `tauri-action` 创建/移动 release tag,改为只负责构建,统一由 `softprops/action-gh-release` 上传资产,避免同一个 `.27` tag 在旧错误提交链和当前维护线之间反复跳转
 
+- **Legacy release 改为手动触发**:`release-1x-legacy.yml` 不再监听 `v*-legacy.*` tag push,避免同一个 tag push run 和 workflow_dispatch run 进入同一个 concurrency group 后互相取消
+
 ---
 
 ## v1.7.7-legacy.26
