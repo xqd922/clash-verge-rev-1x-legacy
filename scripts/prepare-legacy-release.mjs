@@ -54,24 +54,22 @@ async function main() {
 
   await updateJson("src-tauri/tauri.conf.json", (current) => ({
     ...current,
-    package: {
-      ...current.package,
-      productName: LEGACY_PRODUCT_NAME,
-      version,
-    },
+    productName: LEGACY_PRODUCT_NAME,
+    mainBinaryName: LEGACY_PRODUCT_NAME,
+    version,
+    identifier: LEGACY_IDENTIFIER,
     build: {
       ...current.build,
       beforeBuildCommand: "pnpm run web:build",
     },
-    tauri: {
-      ...current.tauri,
-      bundle: {
-        ...current.tauri.bundle,
-        identifier: LEGACY_IDENTIFIER,
-        publisher: REPO_OWNER,
-      },
+    bundle: {
+      ...current.bundle,
+      publisher: REPO_OWNER,
+    },
+    plugins: {
+      ...current.plugins,
       updater: {
-        ...current.tauri.updater,
+        ...current.plugins?.updater,
         pubkey: LEGACY_UPDATER_PUBKEY,
         endpoints: [
           `https://mirror.ghproxy.com/https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${LEGACY_UPDATER_TAG}/update-proxy.json`,
@@ -88,14 +86,10 @@ async function main() {
   ]) {
     await updateJson(file, (current) => ({
       ...current,
-      tauri: {
-        ...current.tauri,
-        bundle: {
-          ...current.tauri.bundle,
-          identifier: LEGACY_IDENTIFIER,
-        },
+      plugins: {
+        ...current.plugins,
         updater: {
-          ...current.tauri.updater,
+          ...current.plugins?.updater,
           pubkey: LEGACY_UPDATER_PUBKEY,
           endpoints: [
             `https://mirror.ghproxy.com/https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${LEGACY_UPDATER_TAG}/update-fixed-webview2-proxy.json`,
