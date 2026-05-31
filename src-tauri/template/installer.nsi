@@ -578,6 +578,16 @@ FunctionEnd
   ${EndIf}
 !macroend
 
+!macro RemoveObsoleteLegacyFiles
+  ; Legacy no longer ships shared service names or legacy-suffixed core names.
+  ; Remove stale files from older Legacy builds so future installs cannot reuse them.
+  Delete "$INSTDIR\resources\clash-verge-service.exe"
+  Delete "$INSTDIR\resources\install-service.exe"
+  Delete "$INSTDIR\resources\uninstall-service.exe"
+  Delete "$INSTDIR\verge-mihomo-legacy.exe"
+  Delete "$INSTDIR\verge-mihomo-alpha-legacy.exe"
+!macroend
+
 !macro EnsureVergeServiceInstalled
   ; Register the isolated Legacy service after copying new service files.
   ; If a previous isolated service points somewhere else, replace it.
@@ -722,6 +732,15 @@ Section WebView2
   webview2_done:
 SectionEnd
 
+!macro IgnoreTerminatedProcess PROCESS_NAME LABEL_SUFFIX
+  DetailPrint "Check live ${PROCESS_NAME} process state..."
+  ExecWait `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command "try { $$processName = '${PROCESS_NAME}'; $$filter = 'Name = ' + [char]39 + $$processName + [char]39; $$count = @(Get-CimInstance Win32_Process -Filter $$filter | Where-Object { $$_.ThreadCount -gt 0 -and $$_.VirtualSize -gt 0 }).Count; if ($$count -gt 0) { exit 1 } else { exit 0 } } catch { exit 1 }"` $R1
+  ${If} $R1 = 0
+    DetailPrint "Ignore terminated ${PROCESS_NAME} process object"
+    Goto process_check_done_${LABEL_SUFFIX}
+  ${EndIf}
+!macroend
+
 !macro TryCloseProcess PROCESS_NAME LABEL_SUFFIX
   !if "${INSTALLMODE}" == "currentUser"
     nsis_tauri_utils::FindProcessCurrentUser "${PROCESS_NAME}"
@@ -743,6 +762,7 @@ SectionEnd
         ${If} $R0 = 0
           Goto process_check_done_${LABEL_SUFFIX}
         ${Else}
+          !insertmacro IgnoreTerminatedProcess "${PROCESS_NAME}" "${LABEL_SUFFIX}"
           IfSilent silent_${LABEL_SUFFIX} ui_${LABEL_SUFFIX}
           silent_${LABEL_SUFFIX}:
             System::Call 'kernel32::AttachConsole(i -1)i.r0'
@@ -772,6 +792,7 @@ Section Install
   !insertmacro CheckIfAppIsRunning
   !insertmacro CheckAllVergeProcesses
   !insertmacro RemovePreviousLegacyService
+  !insertmacro RemoveObsoleteLegacyFiles
   ; Copy main executable
   File "${MAINBINARYSRCPATH}"
 

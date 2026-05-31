@@ -1,3 +1,21 @@
+## v1.7.7-legacy.29
+
+### Notice
+
+- `release/1.x-legacy` 维护线第二十九个补丁版本
+
+### Bugs Fixes
+
+- **安装器忽略已终止但仍残留的进程对象**:如果 Windows 里残留 `Clash Verge Rev Legacy.exe` 的异常进程对象,且 `ThreadCount` 和 `VirtualSize` 已经为 0,安装器不再把它当作仍在运行的真实程序,避免静默安装返回失败
+
+- **升级时清理旧 Legacy 文件名残留**:安装前会删除当前 Legacy 安装目录里已经废弃的 `resources\clash-verge-service.exe` / `install-service.exe` / `uninstall-service.exe` 以及 `verge-mihomo-legacy.exe` / `verge-mihomo-alpha-legacy.exe`,避免后续升级或排查时继续混用旧命名
+
+### CI / 流水线
+
+- **补齐 Tauri 2 签名环境变量**:release 构建同时传入 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`,并把 release 资产固定到当前 workflow commit,避免成功构建出的 release 指向错误提交
+
+---
+
 ## v1.7.7-legacy.27
 
 ### Notice
