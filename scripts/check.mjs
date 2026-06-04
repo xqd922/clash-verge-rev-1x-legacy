@@ -5,7 +5,7 @@ import path from "path";
 import AdmZip from "adm-zip";
 import fetch from "node-fetch";
 import proxyAgent from "https-proxy-agent";
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 
 const cwd = process.cwd();
 const TEMP_DIR = path.join(cwd, "node_modules/.verge");
@@ -14,11 +14,24 @@ const META_VERSION_PIN = process.env.META_VERSION?.trim();
 const META_ALPHA_VERSION_PIN = process.env.META_ALPHA_VERSION?.trim();
 const META_RULES_TAG = (process.env.META_RULES_TAG || "latest").trim();
 const UWP_TOOL_TAG = (process.env.UWP_TOOL_TAG || "latest").trim();
-const DEFAULT_LEGACY_SERVICE_TAG = "v1.7.7";
-const LEGACY_SERVICE_REPO = (
-  process.env.LEGACY_SERVICE_REPO || "clash-verge-rev/clash-verge-rev"
+const LEGACY_SERVICE_SOURCE_REPO = (
+  process.env.LEGACY_SERVICE_SOURCE_REPO ||
+  "https://github.com/clash-verge-rev/clash-verge-service.git"
 ).trim();
-const LEGACY_SERVICE_TAG = resolveLegacyServiceTag();
+const LEGACY_SERVICE_SOURCE_REF = (
+  process.env.LEGACY_SERVICE_SOURCE_REF || "e33024d"
+).trim();
+const LEGACY_SERVICE_NAME = "clash_verge_service_legacy";
+const LEGACY_SERVICE_DISPLAY_NAME = "Clash Verge Service Legacy";
+const LEGACY_SERVICE_PORT = "33210";
+const LEGACY_SERVICE_BIN = "clash-verge-service-legacy";
+const LEGACY_INSTALL_BIN = "install-service-legacy";
+const LEGACY_UNINSTALL_BIN = "uninstall-service-legacy";
+const LEGACY_APP_IDENTIFIER = "io.github.xqd922.clash-verge-rev-legacy";
+const LEGACY_SERVICE_BUNDLE_ID = `${LEGACY_APP_IDENTIFIER}.service`;
+const LEGACY_IPC_SOCKET = "/tmp/clash-verge-service-legacy.sock";
+const LEGACY_IPC_PIPE = String.raw`\\.\pipe\clash-verge-service-legacy`;
+const LEGACY_SERVICE_LOG = "clash-verge-service-legacy.log";
 
 const PLATFORM_MAP = {
   "x86_64-pc-windows-msvc": "win32",
@@ -46,12 +59,6 @@ const ARCH_MAP = {
   "riscv64gc-unknown-linux-gnu": "riscv64",
   "loongarch64-unknown-linux-gnu": "loong64",
 };
-const LEGACY_WINDOWS_PORTABLE_ARCH_MAP = {
-  "win32-x64": "x64",
-  "win32-ia32": "x86",
-  "win32-arm64": "arm64",
-};
-
 const arg1 = process.argv.slice(2)[0];
 const arg2 = process.argv.slice(2)[1];
 const target = arg1 === "--force" ? arg2 : arg1;
@@ -70,7 +77,7 @@ const META_ALPHA_VERSION_URL =
   "https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/version.txt";
 const META_ALPHA_URL_PREFIX = `https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha`;
 let META_ALPHA_VERSION;
-let legacyWindowsServiceResourcesPromise;
+let legacyServiceResourcesPromise;
 
 function ensureOk(response, url) {
   if (!response.ok) {
@@ -93,23 +100,44 @@ function looksLikeHtml(buffer) {
   return /^<!doctype html/i.test(sample) || /^<html/i.test(sample);
 }
 
-function resolveLegacyServiceTag() {
-  const explicitTag = process.env.LEGACY_SERVICE_TAG?.trim();
-  if (explicitTag) {
-    return explicitTag.startsWith("v") ? explicitTag : `v${explicitTag}`;
-  }
-
-  const releaseTag = process.env.RELEASE_TAG?.trim();
-  if (!releaseTag || !releaseTag.includes("-legacy.")) {
-    return DEFAULT_LEGACY_SERVICE_TAG;
-  }
-
-  const baseTag = releaseTag.replace(/-legacy\..*$/, "");
-  return baseTag.startsWith("v") ? baseTag : `v${baseTag}`;
+function runCommand(command, args, options = {}) {
+  console.log(`[INFO]: ${command} ${args.join(" ")}`);
+  execFileSync(command, args, {
+    cwd,
+    stdio: "inherit",
+    ...options,
+  });
 }
 
-function normalizeZipEntryName(entryName) {
-  return entryName.replace(/\\/g, "/");
+async function replaceInFile(file, replacements) {
+  let content = await fs.readFile(file, "utf8");
+  for (const [from, to] of replacements) {
+    if (!content.includes(from)) {
+      throw new Error(`expected "${from}" in "${file}"`);
+    }
+    content = content.replaceAll(from, to);
+  }
+  await fs.writeFile(file, content);
+}
+
+async function replaceInFileIfExists(file, replacements) {
+  if (!(await fs.pathExists(file))) {
+    return;
+  }
+
+  let content = await fs.readFile(file, "utf8");
+  let changed = false;
+  for (const [from, to] of replacements) {
+    if (!content.includes(from)) {
+      continue;
+    }
+    content = content.replaceAll(from, to);
+    changed = true;
+  }
+
+  if (changed) {
+    await fs.writeFile(file, content);
+  }
 }
 
 const META_ALPHA_MAP = {
@@ -363,32 +391,12 @@ async function resolveResource(binInfo) {
   console.log(`[INFO]: ${file} finished`);
 }
 
-function shouldUseLegacyWindowsServiceBundle() {
-  return platform === "win32" && !!LEGACY_SERVICE_TAG;
-}
-
-function getLegacyWindowsPortableInfo() {
-  const legacyArch = LEGACY_WINDOWS_PORTABLE_ARCH_MAP[`${platform}-${arch}`];
-  if (!legacyArch) {
-    throw new Error(
-      `legacy service bundle unsupported platform "${platform}-${arch}"`
-    );
-  }
-
-  const version = LEGACY_SERVICE_TAG.replace(/^v/, "");
-  const zipFile = `Clash.Verge_${version}_${legacyArch}_portable.zip`;
-
-  return {
-    zipFile,
-    downloadURL: `https://github.com/${LEGACY_SERVICE_REPO}/releases/download/${LEGACY_SERVICE_TAG}/${zipFile}`,
-  };
-}
-
-async function resolveLegacyWindowsServiceResources() {
+async function resolveLegacyServiceResources() {
+  const exeExt = platform === "win32" ? ".exe" : "";
   const files = [
-    "clash-verge-service.exe",
-    "install-service.exe",
-    "uninstall-service.exe",
+    `${LEGACY_SERVICE_BIN}${exeExt}`,
+    `${LEGACY_INSTALL_BIN}${exeExt}`,
+    `${LEGACY_UNINSTALL_BIN}${exeExt}`,
   ];
   const resDir = path.join(cwd, "src-tauri/resources");
   const targetPaths = files.map((file) => path.join(resDir, file));
@@ -400,67 +408,273 @@ async function resolveLegacyWindowsServiceResources() {
     return;
   }
 
-  const { zipFile, downloadURL } = getLegacyWindowsPortableInfo();
   const tempDir = path.join(
     TEMP_DIR,
     "legacy-service",
-    path.parse(zipFile).name
+    LEGACY_SERVICE_SOURCE_REF
   );
-  const tempZip = path.join(tempDir, zipFile);
+  const sourceDir = path.join(tempDir, "source");
+  const cargoTargetDir = path.join(
+    sourceDir,
+    "target",
+    SIDECAR_HOST,
+    "release"
+  );
 
   await fs.mkdirp(resDir);
-  await fs.mkdirp(tempDir);
 
   console.log(
-    `[INFO]: resolving legacy service bundle from "${LEGACY_SERVICE_TAG}" (${zipFile})`
+    `[INFO]: building legacy service from "${LEGACY_SERVICE_SOURCE_REF}"`
   );
 
   try {
-    if (!(await fs.pathExists(tempZip))) {
-      await downloadFile(downloadURL, tempZip);
-    }
+    await fs.remove(tempDir);
+    await fs.mkdirp(tempDir);
 
-    const zip = new AdmZip(tempZip);
+    runCommand("git", [
+      "clone",
+      "--no-checkout",
+      LEGACY_SERVICE_SOURCE_REPO,
+      sourceDir,
+    ]);
+    runCommand("git", ["checkout", LEGACY_SERVICE_SOURCE_REF], {
+      cwd: sourceDir,
+    });
 
-    for (const file of files) {
-      const entry = zip
-        .getEntries()
-        .find(
-          (item) =>
-            normalizeZipEntryName(item.entryName) === `resources/${file}`
-        );
+    await replaceInFile(path.join(sourceDir, "src/service/mod.rs"), [
+      [
+        'const SERVICE_NAME: &str = "clash_verge_service";',
+        `const SERVICE_NAME: &str = "${LEGACY_SERVICE_NAME}";`,
+      ],
+      [
+        "const LISTEN_PORT: u16 = 33211;",
+        `const LISTEN_PORT: u16 = ${LEGACY_SERVICE_PORT};`,
+      ],
+      [
+        "// systemctl stop clash_verge_service",
+        `// systemctl stop ${LEGACY_SERVICE_NAME}`,
+      ],
+    ]);
+    await replaceInFile(path.join(sourceDir, "src/install.rs"), [
+      [
+        'const SERVICE_NAME: &str = "clash-verge-service";',
+        `const SERVICE_NAME: &str = "${LEGACY_SERVICE_BIN}";`,
+      ],
+      [
+        'with_file_name("clash-verge-service.exe")',
+        `with_file_name("${LEGACY_SERVICE_BIN}.exe")`,
+      ],
+      [
+        'with_file_name("clash-verge-service")',
+        `with_file_name("${LEGACY_SERVICE_BIN}")`,
+      ],
+      [
+        'eprintln!("clash-verge-service.exe not found")',
+        `eprintln!("${LEGACY_SERVICE_BIN}.exe not found")`,
+      ],
+      [
+        'open_service("clash_verge_service", service_access)',
+        `open_service("${LEGACY_SERVICE_NAME}", service_access)`,
+      ],
+      [
+        'name: OsString::from("clash_verge_service")',
+        `name: OsString::from("${LEGACY_SERVICE_NAME}")`,
+      ],
+      [
+        'display_name: OsString::from("Clash Verge Service")',
+        `display_name: OsString::from("${LEGACY_SERVICE_DISPLAY_NAME}")`,
+      ],
+      [
+        'service.set_description("Clash Verge Service helps to launch clash core")?',
+        `service.set_description("${LEGACY_SERVICE_DISPLAY_NAME} helps to launch clash core")?`,
+      ],
+      [
+        "The clash-verge-service binary not found.",
+        `The ${LEGACY_SERVICE_BIN} binary not found.`,
+      ],
+    ]);
+    await replaceInFile(path.join(sourceDir, "src/uninstall.rs"), [
+      [
+        'const SERVICE_NAME: &str = "clash-verge-service";',
+        `const SERVICE_NAME: &str = "${LEGACY_SERVICE_BIN}";`,
+      ],
+      [
+        'open_service("clash_verge_service", service_access)',
+        `open_service("${LEGACY_SERVICE_NAME}", service_access)`,
+      ],
+    ]);
+    await replaceInFileIfExists(path.join(sourceDir, "src/service/mod.rs"), [
+      [
+        "// launchctl stop clash_verge_service",
+        `// launchctl stop ${LEGACY_SERVICE_BUNDLE_ID}`,
+      ],
+      [
+        '        &["stop", "io.github.clash-verge-rev.clash-verge-rev.service"],',
+        `        &["stop", "${LEGACY_SERVICE_BUNDLE_ID}"],`,
+      ],
+    ]);
+    await replaceInFileIfExists(path.join(sourceDir, "src/install.rs"), [
+      [
+        'anyhow!("clash-verge-service binary not found")',
+        `anyhow!("${LEGACY_SERVICE_BIN} binary not found")`,
+      ],
+      [
+        '"/Library/PrivilegedHelperTools/io.github.clash-verge-rev.clash-verge-rev.service.bundle"',
+        `"/Library/PrivilegedHelperTools/${LEGACY_SERVICE_BUNDLE_ID}.bundle"`,
+      ],
+      [
+        '"/Library/PrivilegedHelperTools/io.github.clashverge.helper"',
+        `"/Library/PrivilegedHelperTools/${LEGACY_SERVICE_BUNDLE_ID}"`,
+      ],
+      [
+        'format!("{}/clash-verge-service", macos_path)',
+        `format!("{}/${LEGACY_SERVICE_BIN}", macos_path)`,
+      ],
+      [
+        '"/Library/LaunchDaemons/io.github.clash-verge-rev.clash-verge-rev.service.plist"',
+        `"/Library/LaunchDaemons/${LEGACY_SERVICE_BUNDLE_ID}.plist"`,
+      ],
+      [
+        '"/Library/LaunchDaemons/io.github.clashverge.helper.plist"',
+        `"/Library/LaunchDaemons/${LEGACY_SERVICE_BUNDLE_ID}.plist"`,
+      ],
+      [
+        '"system/io.github.clash-verge-rev.clash-verge-rev.service"',
+        `"system/${LEGACY_SERVICE_BUNDLE_ID}"`,
+      ],
+      [
+        '&["start", "io.github.clash-verge-rev.clash-verge-rev.service"]',
+        `&["start", "${LEGACY_SERVICE_BUNDLE_ID}"]`,
+      ],
+      [
+        '.arg("io.github.clashverge.helper")',
+        `.arg("${LEGACY_SERVICE_BUNDLE_ID}")`,
+      ],
+      [
+        'eprintln!("The clash-verge-service binary not found.");',
+        `eprintln!("The ${LEGACY_SERVICE_BIN} binary not found.");`,
+      ],
+    ]);
+    await replaceInFileIfExists(path.join(sourceDir, "src/uninstall.rs"), [
+      [
+        '"/Library/PrivilegedHelperTools/io.github.clash-verge-rev.clash-verge-rev.service.bundle"',
+        `"/Library/PrivilegedHelperTools/${LEGACY_SERVICE_BUNDLE_ID}.bundle"`,
+      ],
+      [
+        '"/Library/PrivilegedHelperTools/io.github.clashverge.helper"',
+        `"/Library/PrivilegedHelperTools/${LEGACY_SERVICE_BUNDLE_ID}"`,
+      ],
+      [
+        '"/Library/LaunchDaemons/io.github.clash-verge-rev.clash-verge-rev.service.plist"',
+        `"/Library/LaunchDaemons/${LEGACY_SERVICE_BUNDLE_ID}.plist"`,
+      ],
+      [
+        '"/Library/LaunchDaemons/io.github.clashverge.helper.plist"',
+        `"/Library/LaunchDaemons/${LEGACY_SERVICE_BUNDLE_ID}.plist"`,
+      ],
+      [
+        'let service_id = "io.github.clash-verge-rev.clash-verge-rev.service";',
+        `let service_id = "${LEGACY_SERVICE_BUNDLE_ID}";`,
+      ],
+      [
+        '.arg("io.github.clashverge.helper")',
+        `.arg("${LEGACY_SERVICE_BUNDLE_ID}")`,
+      ],
+    ]);
+    await replaceInFileIfExists(path.join(sourceDir, "src/service/ipc.rs"), [
+      [String.raw`r"\\.\pipe\clash-verge-service"`, `r"${LEGACY_IPC_PIPE}"`],
+      ['"/tmp/clash-verge-service.sock"', `"${LEGACY_IPC_SOCKET}"`],
+    ]);
+    await replaceInFileIfExists(path.join(sourceDir, "src/main.rs"), [
+      [
+        'service_dir.join("clash-verge-service.log")',
+        `service_dir.join("${LEGACY_SERVICE_LOG}")`,
+      ],
+    ]);
+    await replaceInFileIfExists(
+      path.join(sourceDir, "src/files/info.plist.tmpl"),
+      [
+        [
+          "<string>Clash Verge Service</string>",
+          `<string>${LEGACY_SERVICE_DISPLAY_NAME}</string>`,
+        ],
+        [
+          "<string>io.github.clash-verge-rev.clash-verge-rev.service</string>",
+          `<string>${LEGACY_SERVICE_BUNDLE_ID}</string>`,
+        ],
+        [
+          "<string>clash-verge-service</string>",
+          `<string>${LEGACY_SERVICE_BIN}</string>`,
+        ],
+      ]
+    );
+    await replaceInFileIfExists(
+      path.join(sourceDir, "src/files/io.github.clashverge.helper.plist"),
+      [
+        ["io.github.clashverge.helper", LEGACY_SERVICE_BUNDLE_ID],
+        [
+          "/Library/PrivilegedHelperTools/io.github.clashverge.helper",
+          `/Library/PrivilegedHelperTools/${LEGACY_SERVICE_BUNDLE_ID}`,
+        ],
+      ]
+    );
+    await replaceInFileIfExists(
+      path.join(sourceDir, "src/files/launchd.plist.tmpl"),
+      [
+        [
+          "<string>io.github.clash-verge-rev.clash-verge-rev</string>",
+          `<string>${LEGACY_APP_IDENTIFIER}</string>`,
+        ],
+        [
+          "io.github.clash-verge-rev.clash-verge-rev.service",
+          LEGACY_SERVICE_BUNDLE_ID,
+        ],
+        [
+          "/Library/PrivilegedHelperTools/io.github.clash-verge-rev.clash-verge-rev.service.bundle/Contents/MacOS/clash-verge-service",
+          `/Library/PrivilegedHelperTools/${LEGACY_SERVICE_BUNDLE_ID}.bundle/Contents/MacOS/${LEGACY_SERVICE_BIN}`,
+        ],
+      ]
+    );
+    await replaceInFile(path.join(sourceDir, "src/service/web.rs"), [
+      [
+        'map.insert("service".into(), "Clash Verge Service".into());',
+        `map.insert("service".into(), "${LEGACY_SERVICE_DISPLAY_NAME}".into());`,
+      ],
+    ]);
 
-      if (!entry) {
-        throw new Error(
-          `expected "${file}" in legacy portable package "${zipFile}"`
-        );
-      }
+    runCommand("cargo", ["build", "--release", "--target", SIDECAR_HOST], {
+      cwd: sourceDir,
+    });
 
-      const content = zip.readFile(entry);
-      if (!content) {
-        throw new Error(
-          `failed to read "${file}" from legacy portable package "${zipFile}"`
-        );
-      }
+    const builtFiles = [
+      ["clash-verge-service", `${LEGACY_SERVICE_BIN}${exeExt}`],
+      ["install-service", `${LEGACY_INSTALL_BIN}${exeExt}`],
+      ["uninstall-service", `${LEGACY_UNINSTALL_BIN}${exeExt}`],
+    ];
 
-      await fs.writeFile(path.join(resDir, file), content);
-      console.log(`[INFO]: extracted "${file}" from "${zipFile}"`);
+    for (const [sourceName, targetName] of builtFiles) {
+      await fs.copyFile(
+        path.join(cargoTargetDir, `${sourceName}${exeExt}`),
+        path.join(resDir, targetName)
+      );
+      console.log(`[INFO]: built "${targetName}" from legacy service source`);
     }
   } finally {
     await fs.remove(tempDir);
   }
 }
 
-function ensureLegacyWindowsServiceResources() {
-  if (!legacyWindowsServiceResourcesPromise) {
-    legacyWindowsServiceResourcesPromise =
-      resolveLegacyWindowsServiceResources().catch((error) => {
-        legacyWindowsServiceResourcesPromise = undefined;
+function ensureLegacyServiceResources() {
+  if (!legacyServiceResourcesPromise) {
+    legacyServiceResourcesPromise = resolveLegacyServiceResources().catch(
+      (error) => {
+        legacyServiceResourcesPromise = undefined;
         throw error;
-      });
+      }
+    );
   }
 
-  return legacyWindowsServiceResourcesPromise;
+  return legacyServiceResourcesPromise;
 }
 
 /**
@@ -538,9 +752,9 @@ const resolvePlugin = async () => {
 // service chmod
 const resolveServicePermission = async () => {
   const serviceExecutables = [
-    "clash-verge-service",
-    "install-service",
-    "uninstall-service",
+    LEGACY_SERVICE_BIN,
+    LEGACY_INSTALL_BIN,
+    LEGACY_UNINSTALL_BIN,
   ];
   const resDir = path.join(cwd, "src-tauri/resources");
   for (let f of serviceExecutables) {
@@ -556,43 +770,11 @@ const resolveServicePermission = async () => {
  * main
  */
 
-const SERVICE_URL = `https://github.com/clash-verge-rev/clash-verge-service/releases/download/${SIDECAR_HOST}`;
+const resolveService = () => ensureLegacyServiceResources();
 
-const resolveService = () => {
-  if (shouldUseLegacyWindowsServiceBundle()) {
-    return ensureLegacyWindowsServiceResources();
-  }
+const resolveInstall = () => ensureLegacyServiceResources();
 
-  let ext = platform === "win32" ? ".exe" : "";
-  return resolveResource({
-    file: "clash-verge-service" + ext,
-    downloadURL: `${SERVICE_URL}/clash-verge-service${ext}`,
-  });
-};
-
-const resolveInstall = () => {
-  if (shouldUseLegacyWindowsServiceBundle()) {
-    return ensureLegacyWindowsServiceResources();
-  }
-
-  let ext = platform === "win32" ? ".exe" : "";
-  return resolveResource({
-    file: "install-service" + ext,
-    downloadURL: `${SERVICE_URL}/install-service${ext}`,
-  });
-};
-
-const resolveUninstall = () => {
-  if (shouldUseLegacyWindowsServiceBundle()) {
-    return ensureLegacyWindowsServiceResources();
-  }
-
-  let ext = platform === "win32" ? ".exe" : "";
-  return resolveResource({
-    file: "uninstall-service" + ext,
-    downloadURL: `${SERVICE_URL}/uninstall-service${ext}`,
-  });
-};
+const resolveUninstall = () => ensureLegacyServiceResources();
 
 const resolveMmdb = () =>
   resolveResource({

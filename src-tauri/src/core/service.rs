@@ -1,5 +1,4 @@
-use crate::config::{Config, IVerge};
-use crate::core::handle;
+use crate::core::CoreManager;
 use crate::utils::dirs;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -11,7 +10,7 @@ use tokio::time::sleep;
 
 // Windows only
 
-const SERVICE_URL: &str = "http://127.0.0.1:33211";
+const SERVICE_URL: &str = "http://127.0.0.1:33210";
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseBody {
@@ -46,10 +45,10 @@ pub async fn install_service(_passwd: String) -> Result<()> {
     use std::os::windows::process::CommandExt;
 
     let binary_path = dirs::service_path()?;
-    let install_path = binary_path.with_file_name("install-service.exe");
+    let install_path = binary_path.with_file_name("install-service-legacy.exe");
 
     if !install_path.exists() {
-        bail!("installer exe not found");
+        bail!("installer exe not found: {}", install_path.display());
     }
 
     let token = Token::with_current_process()?;
@@ -77,9 +76,9 @@ pub async fn install_service(passwd: String) -> Result<()> {
     use users::get_effective_uid;
 
     let binary_path = dirs::service_path()?;
-    let installer_path = binary_path.with_file_name("install-service");
+    let installer_path = binary_path.with_file_name("install-service-legacy");
     if !installer_path.exists() {
-        bail!("installer not found");
+        bail!("installer not found: {}", installer_path.display());
     }
 
     let output = match get_effective_uid() {
@@ -121,10 +120,10 @@ pub async fn install_service(passwd: String) -> Result<()> {
 #[cfg(target_os = "macos")]
 pub async fn install_service(passwd: String) -> Result<()> {
     let binary_path = dirs::service_path()?;
-    let installer_path = binary_path.with_file_name("install-service");
+    let installer_path = binary_path.with_file_name("install-service-legacy");
 
     if !installer_path.exists() {
-        bail!("installer not found");
+        bail!("installer not found: {}", installer_path.display());
     }
 
     sudo(
@@ -159,10 +158,10 @@ pub async fn uninstall_service(_passwd: String) -> Result<()> {
     use std::os::windows::process::CommandExt;
 
     let binary_path = dirs::service_path()?;
-    let uninstall_path = binary_path.with_file_name("uninstall-service.exe");
+    let uninstall_path = binary_path.with_file_name("uninstall-service-legacy.exe");
 
     if !uninstall_path.exists() {
-        bail!("uninstaller exe not found");
+        bail!("uninstaller exe not found: {}", uninstall_path.display());
     }
 
     let token = Token::with_current_process()?;
@@ -190,10 +189,10 @@ pub async fn uninstall_service(passwd: String) -> Result<()> {
     use users::get_effective_uid;
 
     let binary_path = dirs::service_path()?;
-    let uninstaller_path = binary_path.with_file_name("uninstall-service");
+    let uninstaller_path = binary_path.with_file_name("uninstall-service-legacy");
 
     if !uninstaller_path.exists() {
-        bail!("uninstaller not found");
+        bail!("uninstaller not found: {}", uninstaller_path.display());
     }
 
     let output = match get_effective_uid() {
@@ -228,10 +227,10 @@ pub async fn uninstall_service(passwd: String) -> Result<()> {
 #[cfg(target_os = "macos")]
 pub async fn uninstall_service(passwd: String) -> Result<()> {
     let binary_path = dirs::service_path()?;
-    let uninstaller_path = binary_path.with_file_name("uninstall-service");
+    let uninstaller_path = binary_path.with_file_name("uninstall-service-legacy");
 
     if !uninstaller_path.exists() {
-        bail!("uninstaller not found");
+        bail!("uninstaller not found: {}", uninstaller_path.display());
     }
 
     sudo(
@@ -284,26 +283,14 @@ pub(super) async fn run_core_by_service(config_file: &PathBuf) -> Result<()> {
         sleep(Duration::from_secs(1)).await;
     }
 
-    let clash_core = { Config::verge().latest().clash_core.clone() };
-    let mut clash_core = clash_core.unwrap_or("verge-mihomo".into());
-
-    // compatibility
-    if clash_core.contains("clash") {
-        clash_core = "verge-mihomo".to_string();
-        Config::verge().draft().patch_config(IVerge {
-            clash_core: Some("verge-mihomo".to_string()),
-            ..IVerge::default()
-        });
-        Config::verge().apply();
-        match Config::verge().data().save_file() {
-            Ok(_) => handle::Handle::refresh_verge(),
-            Err(err) => log::error!(target: "app", "{err}"),
-        }
-    }
+    let clash_core = CoreManager::normalize_configured_core()?;
 
     let bin_ext = if cfg!(windows) { ".exe" } else { "" };
     let clash_bin = format!("{clash_core}{bin_ext}");
     let bin_path = current_exe()?.with_file_name(clash_bin);
+    if !bin_path.exists() {
+        bail!("clash core executable not found: {}", bin_path.display());
+    }
     let bin_path = dirs::path_to_str(&bin_path)?;
 
     let config_dir = dirs::app_home_dir()?;

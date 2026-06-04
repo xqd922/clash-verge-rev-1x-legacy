@@ -137,11 +137,10 @@ jobs:
           run_install: false
 
       - name: Pnpm install and check
-        env:
-          LEGACY_SERVICE_TAG: v1.7.7
         run: |
           pnpm i
           pnpm check ${{ matrix.target }}
+          pnpm legacy:verify-coexistence
 
       - name: Prepare legacy release metadata
         run: pnpm legacy:prepare-release ${{ needs.prepare-release.outputs.release_tag }}
@@ -207,11 +206,10 @@ jobs:
           run_install: false
 
       - name: Pnpm install and check
-        env:
-          LEGACY_SERVICE_TAG: v1.7.7
         run: |
           pnpm i
           pnpm check ${{ matrix.target }}
+          pnpm legacy:verify-coexistence
 
       - name: Prepare legacy release metadata
         run: pnpm legacy:prepare-release ${{ needs.prepare-release.outputs.release_tag }}

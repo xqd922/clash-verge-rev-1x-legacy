@@ -11,6 +11,9 @@ use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tauri::api::process::{Command, CommandChild, CommandEvent};
 use tokio::time::sleep;
 
+pub(crate) const DEFAULT_CLASH_CORE: &str = "verge-mihomo";
+const ALPHA_CLASH_CORE: &str = "verge-mihomo-alpha";
+
 #[derive(Debug)]
 pub struct CoreManager {
     sidecar: Arc<Mutex<Option<CommandChild>>>,
@@ -38,19 +41,20 @@ impl CoreManager {
         Ok(())
     }
 
-    /// 检查订阅是否正确
-    pub fn check_config(&self) -> Result<()> {
-        let config_path = Config::generate_file(ConfigType::Check)?;
-        let config_path = dirs::path_to_str(&config_path)?;
+    pub(crate) fn normalize_configured_core() -> Result<String> {
+        let current = { Config::verge().latest().clash_core.clone() };
+        let normalized = match current.as_deref().unwrap_or(DEFAULT_CLASH_CORE) {
+            DEFAULT_CLASH_CORE => DEFAULT_CLASH_CORE,
+            ALPHA_CLASH_CORE => ALPHA_CLASH_CORE,
+            "verge-mihomo-legacy" => DEFAULT_CLASH_CORE,
+            "verge-mihomo-alpha-legacy" => ALPHA_CLASH_CORE,
+            value if value.contains("clash") => DEFAULT_CLASH_CORE,
+            _ => DEFAULT_CLASH_CORE,
+        };
 
-        let clash_core = { Config::verge().latest().clash_core.clone() };
-        let mut clash_core = clash_core.unwrap_or("verge-mihomo".into());
-
-        // compatibility
-        if clash_core.contains("clash") {
-            clash_core = "verge-mihomo".to_string();
+        if current.as_deref() != Some(normalized) {
             Config::verge().draft().patch_config(IVerge {
-                clash_core: Some("verge-mihomo".to_string()),
+                clash_core: Some(normalized.to_string()),
                 ..IVerge::default()
             });
             Config::verge().apply();
@@ -59,6 +63,16 @@ impl CoreManager {
                 Err(err) => log::error!(target: "app", "{err}"),
             }
         }
+
+        Ok(normalized.to_string())
+    }
+
+    /// 检查订阅是否正确
+    pub fn check_config(&self) -> Result<()> {
+        let config_path = Config::generate_file(ConfigType::Check)?;
+        let config_path = dirs::path_to_str(&config_path)?;
+
+        let clash_core = Self::normalize_configured_core()?;
 
         let test_dir = dirs::app_home_dir()?.join("test");
         let test_dir = dirs::path_to_str(&test_dir)?;
@@ -135,22 +149,7 @@ impl CoreManager {
         let app_dir = dirs::app_home_dir()?;
         let app_dir = dirs::path_to_str(&app_dir)?;
 
-        let clash_core = { Config::verge().latest().clash_core.clone() };
-        let mut clash_core = clash_core.unwrap_or("verge-mihomo".into());
-
-        // compatibility
-        if clash_core.contains("clash") {
-            clash_core = "verge-mihomo".to_string();
-            Config::verge().draft().patch_config(IVerge {
-                clash_core: Some("verge-mihomo".to_string()),
-                ..IVerge::default()
-            });
-            Config::verge().apply();
-            match Config::verge().data().save_file() {
-                Ok(_) => handle::Handle::refresh_verge(),
-                Err(err) => log::error!(target: "app", "{err}"),
-            }
-        }
+        let clash_core = Self::normalize_configured_core()?;
 
         let config_path = dirs::path_to_str(&config_path)?;
 
@@ -255,7 +254,7 @@ impl CoreManager {
     /// 切换核心
     pub async fn change_core(&self, clash_core: Option<String>) -> Result<()> {
         let clash_core = clash_core.ok_or(anyhow::anyhow!("clash core is null"))?;
-        const CLASH_CORES: [&str; 2] = ["verge-mihomo", "verge-mihomo-alpha"];
+        const CLASH_CORES: [&str; 2] = [DEFAULT_CLASH_CORE, ALPHA_CLASH_CORE];
 
         if !CLASH_CORES.contains(&clash_core.as_str()) {
             bail!("invalid clash core name \"{clash_core}\"");
