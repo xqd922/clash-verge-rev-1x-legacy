@@ -49,6 +49,8 @@ ${StrLoc}
 !define ESTIMATEDSIZE "{{estimated_size}}"
 !define VERGE_SERVICE_PROCESS "clash-verge-service-legacy.exe"
 !define VERGE_SERVICE_NAME "clash_verge_service_legacy"
+!define LEGACY_PREVIOUS_SERVICE_PROCESS "clash-verge-service.exe"
+!define LEGACY_PREVIOUS_SERVICE_NAME "clash_verge_service"
 
 Name "${PRODUCTNAME}"
 BrandingText "${COPYRIGHT}"
@@ -508,6 +510,103 @@ FunctionEnd
   ${EndIf}
 !macroend
 
+!macro RemoveServiceByName NAME
+  ; Check if the service exists
+  SimpleSC::ExistsService "${NAME}"
+  Pop $0  ; 0: service exists; other: service not exists
+  ; Service exists
+  ${If} $0 == 0
+    Push $0
+    ; Check if the service is running
+    SimpleSC::ServiceIsRunning "${NAME}"
+    Pop $0 ; returns an errorcode (<>0) otherwise success (0)
+    Pop $1 ; returns 1 (service is running) - returns 0 (service is not running)
+    ${If} $0 == 0
+      Push $0
+      ${If} $1 == 1
+        DetailPrint "Stop service ${NAME}..."
+        SimpleSC::StopService "${NAME}" 1 30
+        Pop $0 ; returns an errorcode (<>0) otherwise success (0)
+        ${If} $0 == 0
+          DetailPrint "Removing service ${NAME}..."
+          SimpleSC::RemoveService "${NAME}"
+          Pop $0 ; returns an errorcode (<>0) otherwise success (0)
+          ${If} $0 != 0
+            Push $0
+            SimpleSC::GetErrorMessage
+            Pop $0
+            Abort "Service Remove Error ($0)"
+          ${EndIf}
+        ${ElseIf} $0 != 0
+          Push $0
+          SimpleSC::GetErrorMessage
+          Pop $0
+          Abort "Service Stop Error ($0)"
+        ${EndIf}
+      ${ElseIf} $1 == 0
+        DetailPrint "Removing service ${NAME}..."
+        SimpleSC::RemoveService "${NAME}"
+        Pop $0 ; returns an errorcode (<>0) otherwise success (0)
+        ${If} $0 != 0
+          Push $0
+          SimpleSC::GetErrorMessage
+          Pop $0
+          Abort "Service Remove Error ($0)"
+        ${EndIf}
+      ${EndIf}
+    ${ElseIf} $0 != 0
+      Push $0
+      SimpleSC::GetErrorMessage
+      Pop $0
+      Abort "Check Service Status Error ($0)"
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+!macro RemovePreviousLegacyService
+  ; Only migrate the old shared service if it points to this Legacy install dir.
+  ; If the service belongs to the official app install dir, leave it untouched.
+  ReadRegStr $R0 HKLM "SYSTEM\CurrentControlSet\Services\${LEGACY_PREVIOUS_SERVICE_NAME}" "ImagePath"
+  ${If} $R0 != ""
+    ${StrCase} $R1 $R0 "L"
+    ${StrCase} $R2 "$INSTDIR\resources\${LEGACY_PREVIOUS_SERVICE_PROCESS}" "L"
+    ${StrLoc} $R3 $R1 $R2 ">"
+    ${If} $R3 != ""
+      DetailPrint "Migrate previous Legacy service ${LEGACY_PREVIOUS_SERVICE_NAME}..."
+      !insertmacro RemoveServiceByName "${LEGACY_PREVIOUS_SERVICE_NAME}"
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+!macro EnsureVergeServiceInstalled
+  ; Register the isolated Legacy service after copying new service files.
+  ; If a previous isolated service points somewhere else, replace it.
+  SimpleSC::ExistsService "${VERGE_SERVICE_NAME}"
+  Pop $0  ; 0: service exists; other: service not exists
+  ${If} $0 == 0
+    ReadRegStr $R0 HKLM "SYSTEM\CurrentControlSet\Services\${VERGE_SERVICE_NAME}" "ImagePath"
+    ${StrCase} $R1 $R0 "L"
+    ${StrCase} $R2 "$INSTDIR\resources\${VERGE_SERVICE_PROCESS}" "L"
+    ${StrLoc} $R3 $R1 $R2 ">"
+    ${If} $R3 == ""
+      DetailPrint "Reinstall ${VERGE_SERVICE_NAME} for current install dir..."
+      !insertmacro RemoveServiceByName "${VERGE_SERVICE_NAME}"
+      StrCpy $0 1
+    ${EndIf}
+  ${EndIf}
+  ${If} $0 != 0
+    ${If} ${FileExists} "$INSTDIR\resources\install-service-legacy.exe"
+      DetailPrint "Install ${VERGE_SERVICE_NAME}..."
+      ExecWait '"$INSTDIR\resources\install-service-legacy.exe"' $0
+      ${If} $0 != 0
+        Abort "Install Service Error ($0)"
+      ${EndIf}
+    ${Else}
+      Abort "Install Service Error (missing install-service-legacy.exe)"
+    ${EndIf}
+  ${EndIf}
+!macroend
+
 !macro StartVergeService
   ; Check if the service exists
   SimpleSC::ExistsService "${VERGE_SERVICE_NAME}"
@@ -524,53 +623,25 @@ FunctionEnd
       ${If} $1 == 0
             DetailPrint "Restart Clash Verge Service..."
             SimpleSC::StartService "${VERGE_SERVICE_NAME}" "" 30
+            Pop $0 ; returns an errorcode (<>0) otherwise success (0)
+            ${If} $0 != 0
+              Push $0
+              SimpleSC::GetErrorMessage
+              Pop $0
+              Abort "Start Service Error ($0)"
+            ${EndIf}
       ${EndIf}
     ${ElseIf} $0 != 0
           Push $0
           SimpleSC::GetErrorMessage
           Pop $0
-          MessageBox MB_OK|MB_ICONSTOP "Check Service Status Error ($0)"
+          Abort "Check Service Status Error ($0)"
     ${EndIf}
   ${EndIf}
 !macroend
 
 !macro RemoveVergeService
-  ; Check if the service exists
-  SimpleSC::ExistsService "${VERGE_SERVICE_NAME}"
-  Pop $0  ; 0：service exists；other: service not exists
-  ; Service exists
-  ${If} $0 == 0
-    Push $0
-    ; Check if the service is running
-    SimpleSC::ServiceIsRunning "${VERGE_SERVICE_NAME}"
-    Pop $0 ; returns an errorcode (<>0) otherwise success (0)
-    Pop $1 ; returns 1 (service is running) - returns 0 (service is not running)
-    ${If} $0 == 0
-      Push $0
-      ${If} $1 == 1
-        DetailPrint "Stop Clash Verge Service..."
-        SimpleSC::StopService "${VERGE_SERVICE_NAME}" 1 30
-        Pop $0 ; returns an errorcode (<>0) otherwise success (0)
-        ${If} $0 == 0
-              DetailPrint "Removing Clash Verge Service..."
-              SimpleSC::RemoveService "${VERGE_SERVICE_NAME}"
-        ${ElseIf} $0 != 0
-                  Push $0
-                  SimpleSC::GetErrorMessage
-                  Pop $0
-                  MessageBox MB_OK|MB_ICONSTOP "Clash Verge Service Stop Error ($0)"
-        ${EndIf}
-  ${ElseIf} $1 == 0
-        DetailPrint "Removing Clash Verge Service..."
-        SimpleSC::RemoveService "${VERGE_SERVICE_NAME}"
-  ${EndIf}
-    ${ElseIf} $0 != 0
-          Push $0
-          SimpleSC::GetErrorMessage
-          Pop $0
-          MessageBox MB_OK|MB_ICONSTOP "Check Service Status Error ($0)"
-    ${EndIf}
-  ${EndIf}
+  !insertmacro RemoveServiceByName "${VERGE_SERVICE_NAME}"
 !macroend
 
 Section EarlyChecks
@@ -651,29 +722,29 @@ Section WebView2
   webview2_done:
 SectionEnd
 
-!macro CheckIfAppIsRunning
+!macro TryCloseProcess PROCESS_NAME LABEL_SUFFIX
   !if "${INSTALLMODE}" == "currentUser"
-    nsis_tauri_utils::FindProcessCurrentUser "${MAINBINARYNAME}.exe"
+    nsis_tauri_utils::FindProcessCurrentUser "${PROCESS_NAME}"
   !else
-    nsis_tauri_utils::FindProcess "${MAINBINARYNAME}.exe"
+    nsis_tauri_utils::FindProcess "${PROCESS_NAME}"
   !endif
   Pop $R0
   ${If} $R0 = 0
-      IfSilent kill 0
-      ${IfThen} $PassiveMode != 1 ${|} MessageBox MB_OKCANCEL "$(appRunningOkKill)" IDOK kill IDCANCEL cancel ${|}
-      kill:
+      IfSilent kill_${LABEL_SUFFIX} 0
+      ${IfThen} $PassiveMode != 1 ${|} MessageBox MB_OKCANCEL "$(appRunningOkKill)" IDOK kill_${LABEL_SUFFIX} IDCANCEL cancel_${LABEL_SUFFIX} ${|}
+      kill_${LABEL_SUFFIX}:
         !if "${INSTALLMODE}" == "currentUser"
-          nsis_tauri_utils::KillProcessCurrentUser "${MAINBINARYNAME}.exe"
+          nsis_tauri_utils::KillProcessCurrentUser "${PROCESS_NAME}"
         !else
-          nsis_tauri_utils::KillProcess "${MAINBINARYNAME}.exe"
+          nsis_tauri_utils::KillProcess "${PROCESS_NAME}"
         !endif
         Pop $R0
         Sleep 500
         ${If} $R0 = 0
-          Goto app_check_done
+          Goto process_check_done_${LABEL_SUFFIX}
         ${Else}
-          IfSilent silent ui
-          silent:
+          IfSilent silent_${LABEL_SUFFIX} ui_${LABEL_SUFFIX}
+          silent_${LABEL_SUFFIX}:
             System::Call 'kernel32::AttachConsole(i -1)i.r0'
             ${If} $0 != 0
               System::Call 'kernel32::GetStdHandle(i -11)i.r0'
@@ -681,13 +752,18 @@ SectionEnd
               FileWrite $0 "$(appRunning)$\n"
             ${EndIf}
             Abort
-          ui:
+          ui_${LABEL_SUFFIX}:
             Abort "$(failedToKillApp)"
         ${EndIf}
-      cancel:
+      cancel_${LABEL_SUFFIX}:
         Abort "$(appRunning)"
   ${EndIf}
-  app_check_done:
+  process_check_done_${LABEL_SUFFIX}:
+!macroend
+
+!macro CheckIfAppIsRunning
+  !insertmacro TryCloseProcess "${MAINBINARYNAME}.exe" current
+  !insertmacro TryCloseProcess "clash-verge.exe" previous
 !macroend
 
 Section Install
@@ -695,6 +771,7 @@ Section Install
 
   !insertmacro CheckIfAppIsRunning
   !insertmacro CheckAllVergeProcesses
+  !insertmacro RemovePreviousLegacyService
   ; Copy main executable
   File "${MAINBINARYSRCPATH}"
 
@@ -711,6 +788,7 @@ Section Install
     File /a "/oname={{this}}" "{{@key}}"
   {{/each}}
 
+  !insertmacro EnsureVergeServiceInstalled
   !insertmacro StartVergeService
 
   ; Create uninstaller
