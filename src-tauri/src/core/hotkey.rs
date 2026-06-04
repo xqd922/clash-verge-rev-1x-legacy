@@ -3,7 +3,8 @@ use anyhow::{bail, Result};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use std::{collections::HashMap, sync::Arc};
-use tauri::{AppHandle, GlobalShortcutManager};
+use tauri::AppHandle;
+use tauri_plugin_global_shortcut::{GlobalShortcut, GlobalShortcutExt, ShortcutState};
 
 pub struct Hotkey {
     current: Arc<Mutex<Vec<String>>>, // 保存当前的热键设置
@@ -49,21 +50,18 @@ impl Hotkey {
         Ok(())
     }
 
-    fn get_manager(&self) -> Result<impl GlobalShortcutManager> {
+    fn with_manager<T>(
+        &self,
+        f: impl FnOnce(&GlobalShortcut<tauri::Wry>) -> Result<T>,
+    ) -> Result<T> {
         let app_handle = self.app_handle.lock();
         if app_handle.is_none() {
             bail!("failed to get the hotkey manager");
         }
-        Ok(app_handle.as_ref().unwrap().global_shortcut_manager())
+        f(app_handle.as_ref().unwrap().global_shortcut())
     }
 
     fn register(&self, hotkey: &str, func: &str) -> Result<()> {
-        let mut manager = self.get_manager()?;
-
-        if manager.is_registered(hotkey)? {
-            manager.unregister(hotkey)?;
-        }
-
         let f = match func.trim() {
             "open_or_close_dashboard" => feat::open_or_close_dashboard,
             "clash_mode_rule" => || feat::change_clash_mode("rule".into()),
@@ -75,13 +73,27 @@ impl Hotkey {
             _ => bail!("invalid function \"{func}\""),
         };
 
-        manager.register(hotkey, f)?;
+        self.with_manager(|manager| {
+            if manager.is_registered(hotkey) {
+                manager.unregister(hotkey)?;
+            }
+
+            manager.on_shortcut(hotkey, move |_, _, event| {
+                if event.state() == ShortcutState::Pressed {
+                    f();
+                }
+            })?;
+            Ok(())
+        })?;
         log::info!(target: "app", "register hotkey {hotkey} {func}");
         Ok(())
     }
 
     fn unregister(&self, hotkey: &str) -> Result<()> {
-        self.get_manager()?.unregister(hotkey)?;
+        self.with_manager(|manager| {
+            manager.unregister(hotkey)?;
+            Ok(())
+        })?;
         log::info!(target: "app", "unregister hotkey {hotkey}");
         Ok(())
     }
@@ -153,8 +165,9 @@ impl Hotkey {
 
 impl Drop for Hotkey {
     fn drop(&mut self) {
-        if let Ok(mut manager) = self.get_manager() {
+        let _ = self.with_manager(|manager| {
             let _ = manager.unregister_all();
-        }
+            Ok(())
+        });
     }
 }

@@ -16,15 +16,11 @@ on:
         required: true
         type: boolean
         default: true
-  push:
-    tags:
-      - "v*-legacy.*"
-
 permissions: write-all
 
 concurrency:
   group: release-1x-legacy-${{ github.event.inputs.tag || github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   CARGO_INCREMENTAL: 0
@@ -116,7 +112,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Rust Stable
-        uses: dtolnay/rust-toolchain@1.85.0
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
@@ -153,12 +149,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          tagName: ${{ needs.prepare-release.outputs.release_tag }}
-          releaseName: ${{ needs.prepare-release.outputs.release_name }}
-          releaseBody: ${{ needs.prepare-release.outputs.release_body }}
           tauriScript: pnpm
           args: --target ${{ matrix.target }}
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ needs.prepare-release.outputs.release_name }}
+          body: ${{ needs.prepare-release.outputs.release_body }}
+          token: ${{ secrets.RELEASE_TOKEN }}
+          files: src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*setup*
 
       - name: Portable Bundle
         run: pnpm legacy:portable ${{ matrix.target }}
@@ -187,7 +192,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Rust Stable
-        uses: dtolnay/rust-toolchain@1.85.0
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
@@ -231,6 +236,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
           tauriScript: pnpm
           args: --target ${{ matrix.target }}
@@ -245,6 +252,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
           name: ${{ needs.prepare-release.outputs.release_name }}
           body: ${{ needs.prepare-release.outputs.release_body }}
           token: ${{ secrets.RELEASE_TOKEN }}

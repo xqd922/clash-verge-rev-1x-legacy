@@ -8,7 +8,10 @@ use parking_lot::Mutex;
 use serde_yaml::Mapping;
 use std::{sync::Arc, time::Duration};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
-use tauri::api::process::{Command, CommandChild, CommandEvent};
+use tauri_plugin_shell::{
+    process::{CommandChild, CommandEvent},
+    ShellExt,
+};
 use tokio::time::sleep;
 
 pub(crate) const DEFAULT_CLASH_CORE: &str = "verge-mihomo";
@@ -68,7 +71,7 @@ impl CoreManager {
     }
 
     /// 检查订阅是否正确
-    pub fn check_config(&self) -> Result<()> {
+    pub async fn check_config(&self) -> Result<()> {
         let config_path = Config::generate_file(ConfigType::Check)?;
         let config_path = dirs::path_to_str(&config_path)?;
 
@@ -77,17 +80,28 @@ impl CoreManager {
         let test_dir = dirs::app_home_dir()?.join("test");
         let test_dir = dirs::path_to_str(&test_dir)?;
 
-        let output = Command::new_sidecar(clash_core)?
+        let app_handle = handle::Handle::global()
+            .app_handle
+            .lock()
+            .as_ref()
+            .cloned()
+            .ok_or(anyhow::anyhow!("failed to get app handle"))?;
+
+        let output = app_handle
+            .shell()
+            .sidecar(clash_core)?
             .args(["-t", "-d", test_dir, "-f", config_path])
-            .output()?;
+            .output()
+            .await?;
 
         if !output.status.success() {
-            let error = clash_api::parse_check_output(output.stdout.clone());
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let error = clash_api::parse_check_output(stdout.clone());
             let error = match !error.is_empty() {
                 true => error,
-                false => output.stdout.clone(),
+                false => stdout.clone(),
             };
-            Logger::global().set_log(output.stdout);
+            Logger::global().set_log(stdout);
             bail!("{error}");
         }
 
@@ -155,7 +169,13 @@ impl CoreManager {
 
         let args = vec!["-d", app_dir, "-f", config_path];
 
-        let cmd = Command::new_sidecar(clash_core)?;
+        let app_handle = handle::Handle::global()
+            .app_handle
+            .lock()
+            .as_ref()
+            .cloned()
+            .ok_or(anyhow::anyhow!("failed to get app handle"))?;
+        let cmd = app_handle.shell().sidecar(clash_core)?;
         let (mut rx, cmd_child) = cmd.args(args).spawn()?;
 
         let mut sidecar = self.sidecar.lock();
@@ -166,10 +186,12 @@ impl CoreManager {
             while let Some(event) = rx.recv().await {
                 match event {
                     CommandEvent::Stdout(line) => {
+                        let line = String::from_utf8_lossy(&line).to_string();
                         log::info!(target: "app", "[mihomo]: {line}");
                         Logger::global().set_log(line);
                     }
                     CommandEvent::Stderr(err) => {
+                        let err = String::from_utf8_lossy(&err).to_string();
                         log::error!(target: "app", "[mihomo]: {err}");
                         Logger::global().set_log(err);
                     }
@@ -267,7 +289,7 @@ impl CoreManager {
         // 更新订阅
         Config::generate().await?;
 
-        self.check_config()?;
+        self.check_config().await?;
 
         // 清掉旧日志
         Logger::global().clear_log();
@@ -301,8 +323,8 @@ impl CoreManager {
         // 后台并行 dry-run 校验：不阻塞热路径，但失败时打 warn + 通知前端，
         // 让坏 rule provider / proxy 不会静默降级运行。
         // mihomo PUT /configs 对部分软错误返回 204 但实际降级，单纯靠 PUT 4xx 兜不住。
-        tauri::async_runtime::spawn_blocking(|| {
-            if let Err(err) = CoreManager::global().check_config() {
+        tauri::async_runtime::spawn(async {
+            if let Err(err) = CoreManager::global().check_config().await {
                 log::warn!(target: "app", "config dry-run failed: {err}");
                 handle::Handle::notice_message("config_validate::warn", format!("{err}"));
             }

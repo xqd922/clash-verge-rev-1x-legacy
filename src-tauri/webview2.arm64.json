@@ -1,38 +1,32 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
-  "tauri": {
-    "systemTray": {
-      "iconPath": "icons/tray-icon.ico"
-    },
-    "bundle": {
-      "identifier": "io.github.clash-verge-rev.clash-verge-rev",
-      "targets": ["nsis", "updater"],
-      "windows": {
-        "certificateThumbprint": null,
-        "digestAlgorithm": "sha256",
-        "timestampUrl": "",
-        "webviewInstallMode": {
-          "type": "fixedRuntime",
-          "path": "./Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.arm64/"
-        },
-        "nsis": {
-          "displayLanguageSelector": true,
-          "installerIcon": "icons/icon.ico",
-          "languages": ["SimpChinese", "English"],
-          "license": "../LICENSE",
-          "installMode": "perMachine",
-          "template": "./template/installer.nsi"
-        }
+  "bundle": {
+    "targets": ["nsis"],
+    "licenseFile": "../LICENSE",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "webviewInstallMode": {
+        "type": "fixedRuntime",
+        "path": "./Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.arm64/"
+      },
+      "nsis": {
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico",
+        "languages": ["SimpChinese", "English"],
+        "installMode": "perMachine",
+        "template": "./template/installer.nsi"
       }
-    },
+    }
+  },
+  "plugins": {
     "updater": {
-      "active": true,
-      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI0QkNEQ0NCRkEwNjRFMUUKUldRZVRnYjZ5OXk4SkR2aEF1emxuaTdRZmM3Q1hYaktEcDFhS3BOZ1dmeDl0VUlDZUY4R3dsSFQK",
       "endpoints": [
         "https://mirror.ghproxy.com/https://github.com/xqd922/clash-verge-rev-1x-legacy/releases/download/updater-legacy/update-fixed-webview2-proxy.json",
         "https://github.com/xqd922/clash-verge-rev-1x-legacy/releases/download/updater-legacy/update-fixed-webview2.json"
-      ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI0QkNEQ0NCRkEwNjRFMUUKUldRZVRnYjZ5OXk4SkR2aEF1emxuaTdRZmM3Q1hYaktEcDFhS3BOZ1dmeDl0VUlDZUY4R3dsSFQK"
+      ]
     }
   }
 }
