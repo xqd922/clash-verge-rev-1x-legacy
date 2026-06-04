@@ -1,3 +1,23 @@
+## v1.7.7-legacy.26
+
+### Notice
+
+- `release/1.x-legacy` 维护线第二十六个补丁版本
+
+### Bugs Fixes
+
+- **Legacy 服务模式与官方版彻底隔离**:Legacy Windows service 改为 `clash_verge_service_legacy`,GUI 改连 `127.0.0.1:33210`,服务三件套改为 `clash-verge-service-legacy.exe` / `install-service-legacy.exe` / `uninstall-service-legacy.exe`,避免和官方版共用 `clash_verge_service` 导致安装路径互相覆盖
+
+- **修复回退/升级后的核心配置残留**:如果用户配置里残留 `verge-mihomo-legacy` 或 `verge-mihomo-alpha-legacy`,启动和服务模式会自动归一化为当前安装包实际提供的 `verge-mihomo` / `verge-mihomo-alpha`,避免再次出现 `系统找不到指定的文件。 (os error 2)`
+
+- **缺文件时给出具体路径**:服务安装器、卸载器和核心可执行文件缺失时,错误信息会包含具体缺失文件路径,不再只显示笼统的 `os error 2`
+
+### CI / 流水线
+
+- **新增 Legacy 共存校验**:新增 `pnpm legacy:verify-coexistence`,在 legacy release 和 fixed WebView2 release 构建前检查服务端口、服务名、服务三件套和核心配置迁移保护是否保持隔离
+
+---
+
 ## v1.7.7-legacy.25
 
 ### Notice
